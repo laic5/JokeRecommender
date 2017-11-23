@@ -348,13 +348,6 @@ def main():
     preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df, joke_ids=joke_ids)
 
 
-# In[35]:
-
-main()
-
-
-# In[ ]:
-
 if __name__ == '__main__':
     main()
 
