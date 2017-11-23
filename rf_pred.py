@@ -26,6 +26,10 @@ random.seed(2)
 # GLOBAL VARIABLES
 train_split = .8
 show_plot = True
+num_pred_jokes = 10 # number of jokes you want to predict for a user
+
+# using a random person for demo purposes. can be changed
+sample_user = {'major':'Statistics', 'age':21, 'birth_country':"United States", 'gender':"Female", 'id':5}
 
 
 # In[36]:
@@ -343,14 +347,13 @@ def main():
     # Need: age, gender, birth_country, major, joke_rater_id
     
     # using a sample user for now. when real time, just use these functions and input data into dictionary
-    sample_user = {'major':'Statistics', 'age':24, 'birth_country':"United States", 'gender':"Female", 'id':5}
     sample_df = convert_sample_onehot(sample_user, df3, features)
-    preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df, joke_ids=joke_ids)
+    preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df, joke_ids=joke_ids, k=num_pred_jokes)
 
 
 # In[35]:
 
-main()
+#main()
 
 
 # In[ ]:
