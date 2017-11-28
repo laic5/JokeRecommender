@@ -12,6 +12,7 @@ from sklearn import preprocessing
 from sklearn.linear_model import Lasso
 from sklearn.feature_selection import SelectFromModel
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import normalize
 
 import seaborn as sns; sns.set(color_codes=True)
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ import random
 random.seed(2)
 
 
-# In[2]:
+# In[306]:
 
 # GLOBAL VARIABLES
 train_split = .8
@@ -29,10 +30,12 @@ show_plot = True
 num_pred_jokes = 10 # number of jokes you want to predict for a user
 
 # using a random person for demo purposes. can be changed
-sample_user = {'major':'Statistics', 'age':21, 'birth_country':"United States", 'gender':"Female", 'id':5}
+sample_user = {'major':'Statistics', 'age':21, 'birth_country':"China", 'gender':"Female",                'id':5, 'joke1':"Programming", 'joke2':None, 'type':'Puns', 'music':"Blues", 'movie':None}
+c = 15 # for sample weights
+train = False # either train/test split, or use all the data
 
 
-# In[36]:
+# In[3]:
 
 def lsa_fn(X_tfidf, dim_reduce = 20, print_var=False):
     from sklearn.decomposition import TruncatedSVD 
@@ -131,7 +134,7 @@ def change_category_to_dummy(df):
     return df
 
 
-# In[15]:
+# In[8]:
 
 def lasso_selection(df2, features):
 
@@ -152,6 +155,24 @@ def lasso_selection(df2, features):
     return df3
 
 
+# In[184]:
+
+def weigh_samples_vector(df, user_id=None, c=2):
+    '''
+    Sets all weights equal to 1.
+    If user_id exists in database/csv, then increase weights to c, where c >= 1.
+    Works if user already exists (already rated jokes) or if new user.
+    Return np array that is to be used in rf.fit
+    c is tuneable to how much you want to weight the user's personal ratings.
+    '''
+    vector_length = df.shape[0]
+    vector = np.ones(vector_length)
+    if user_id in df.joke_rater_id.unique(): # is user already exists in database, increase weights
+        idx = df3[df3.joke_rater_id == user_id].index
+        vector[idx] = c # increase -- set to c
+    return vector
+
+
 # In[9]:
 
 def mse(predicted, real):
@@ -163,7 +184,7 @@ def mse(predicted, real):
     return mse
 
 
-# In[17]:
+# In[10]:
 
 def plot_pred_vs_actual(y_pred, y_test):
     ax = sns.regplot(x=y_test, y=y_pred.astype('float'), scatter_kws={'alpha':0.1})
@@ -173,7 +194,26 @@ def plot_pred_vs_actual(y_pred, y_test):
     plt.show()
 
 
-# In[20]:
+# In[310]:
+
+def categorize_multiclass(label, user_label, entry, features, numRow):
+    '''
+    label is what the dummy string category name begins with, i.e. "birth_country_"
+    user_label is the quantity inside the user_dict, accessed by specific key, i.e. user_dict['birth_country']
+    '''
+    user_class = label + str(user_label) 
+    avail_labels = list(compress(features, [item.startswith(label) for item in features]))
+    label_cols = [i for i, x in enumerate(entry.columns) if x in avail_labels]
+
+    for col in label_cols:
+        entry.iloc[:, col] = np.repeat(0, numRow) # set all to 0 for blank slate
+    if user_class in avail_labels:
+        entry.iloc[:,user_class] = np.repeat(1, numRow) # if user class present, set to 1
+        
+    return entry
+
+
+# In[308]:
 
 # convert data into one-hot
 
@@ -202,28 +242,34 @@ def convert_sample_onehot(user_dict, df, features):
     entry.joke_rater_id = np.repeat(user_dict['id'], numRow)
     
     ## COUNTRY
-    user_country = "birth_country_" + user_dict['birth_country'] # user's country
-    avail_countries = list(compress(features, [item.startswith('birth') for item in features])) # country dummies
-    country_cols = [i for i, x in enumerate(avail_countries) if x]
-    for col in country_cols:
-        entry.loc[:, col] = np.repeat(0, numRow) # set all countries to 0 for blank slate
-    if user_country in avail_countries:
-        entry.loc[:,user_country] = np.repeat(1, numRow) # if user country present, set to 1
-           
+    entry = categorize_multiclass("birth_country_", "birth_country", entry, features, numRow)
+    
     ## MAJOR
-    user_major = "major_" + user_dict['major'] # user's major
-    avail_majors = list(compress(features, [item.startswith('major') for item in features])) # major dummies
-    major_cols = [i for i, x in enumerate(avail_majors) if x]
-    for col in major_cols:
-        entry.loc[:, col] = np.repeat(0, numRow) # set all countries to 0 for blank slate  
-        
-    if user_major in avail_majors:
-        entry.loc[:,user_major] = np.repeat(1, numRow)
+    entry = categorize_multiclass("major_", "major", entry, features, numRow)
+    
+    ## PREFERRED JOKE GENRE 1
+    entry = categorize_multiclass("preferred_joke_genre_", "joke1", entry, features, numRow)
+    
+    ## PREFERRED JOKE GENRE 2
+    entry = categorize_multiclass("preferred_joke_genre2_", "joke2", entry, features, numRow)
+    
+    ## PREFERRED JOKE TYPE
+    entry = categorize_multiclass("preferred_joke_type_", "type", entry, features, numRow)
+    
+    ## MOVIE
+    entry = categorize_multiclass("favorite_movie_genre_", "movie", entry, features, numRow)
+    
+    ## MUSIC
+    entry = categorize_multiclass("favorite_music_genre_", "music", entry, features, numRow)
         
     return entry
 
+#entry = df3[df3.joke_rater_id == 476]
+#numRow = entry.shape[0]
+#categorize_multiclass("preferred_joke_genre_", "joke1", entry, features, numRow)
 
-# In[34]:
+
+# In[12]:
 
 def get_topk_jokes(user_df, rf, joke_df, joke_ids, features, k=10, print_output=True):
     '''
@@ -245,9 +291,44 @@ def get_topk_jokes(user_df, rf, joke_df, joke_ids, features, k=10, print_output=
     return df
 
 
-# In[19]:
 
-def main():
+def train_and_test(df3, features, user_id):
+
+    unique_rater = df3.joke_rater_id.unique() # all unique users
+    train_size = round(len(unique_rater) * train_split) # 80/20 train/test split!
+
+    train_idx = np.random.choice(unique_rater, train_size, replace=False) # get randomly train_size number of users to put into train
+    test_idx = [i for i in unique_rater if i not in train_idx] # remaining users go to test
+
+    train_df = df3.loc[df3['joke_rater_id'].isin(train_idx)]
+    test_df = df3.loc[df3['joke_rater_id'].isin(test_idx)]
+    
+    # time to run random forest regressor
+    y = train_df.rating
+    Y_list = list(y.values)
+    new_cols = range(2, df3.shape[1]) # ignore rating and id
+    features = train_df.columns[new_cols]
+    
+    sample_weights = weigh_samples_vector(df=df3, user_id=user_id, c=c) # weigh user's ratings more
+    sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
+    min_weight = min(sample_weights) + 0.001
+
+    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
+    rf.fit(train_df[features], y, sample_weight=sample_weights[train_df.index])
+    
+    # testing
+    y_test = test_df.rating
+    y_pred = rf.predict(test_df[features]).astype('float')
+    print("Test MSE is: " + str(mse(y_test, y_pred)))
+    
+     # see distribution of predicted joke score vs. actual joke value
+    if show_plot:
+        plot_pred_vs_actual(y_pred, y_test)
+
+
+# In[328]:
+
+def query(user):
     
     # 3 dfs from csvs
     rater_df = pd.read_csv("JokeRater.csv")
@@ -304,35 +385,22 @@ def main():
     
     ## RANDOM FORESTTTT
     
-    # train test split
-    train_size = round(len(rater_df) * train_split) # 80/20 train/test split!
-
-    unique_rater = df3.joke_rater_id.unique() # all unique users
-
-    train_idx = np.random.choice(unique_rater, train_size) # get randomly train_size number of users to put into train
-    test_idx = [i for i in unique_rater if i not in train_idx] # remaining users go to test
-
-    train_df = df3.loc[df3['joke_rater_id'].isin(train_idx)]
-    test_df = df3.loc[df3['joke_rater_id'].isin(test_idx)]
-    
-    # time to run random forest regressor
-    y = train_df.rating
+    if train: # train/test to get test MSE
+        train_and_test(df3, features, user['id']) # fitted to train dataset
+        
+    # now using all the data
+    y = df3.rating
     Y_list = list(y.values)
     new_cols = range(2, df3.shape[1]) # ignore rating and id
-    features = train_df.columns[new_cols]
+    features = df3.columns[new_cols]
 
-    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42, max_depth=10) # tuneable parameters
-    rf.fit(train_df[features], y) # fitting random forest on train data
+    sample_weights = weigh_samples_vector(df=df3, user_id=user['id'], c=c) # weigh user's ratings more
+    sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
+    min_weight = min(sample_weights) + 0.001
 
-    # testing
-    y_test = test_df.rating
-    y_pred = rf.predict(test_df[features]).astype('float')
-    print("Test MSE is: " + str(mse(y_test, y_pred)))
-    
-    # see distribution of predicted joke score vs. actual joke value
-    if show_plot:
-        plot_pred_vs_actual(y_pred, y_test)
-        
+    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
+    rf.fit(df3[features], y, sample_weight=sample_weights)
+
     # see what factors are most important
     s = pd.DataFrame((rf.feature_importances_))
 
@@ -347,17 +415,17 @@ def main():
     # Need: age, gender, birth_country, major, joke_rater_id
     
     # using a sample user for now. when real time, just use these functions and input data into dictionary
-    sample_df = convert_sample_onehot(sample_user, df3, features)
-    preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df, joke_ids=joke_ids, k=num_pred_jokes)
+    sample_df = convert_sample_onehot(user, df3, features)
+    preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df,
+                           joke_ids=joke_ids, k=num_pred_jokes, print_output=False)
+    
+    return preds # preds contains all the joke predicted scores
 
-
-# In[35]:
-
-#main()
+#query(sample_user)
 
 
 # In[ ]:
 
 if __name__ == '__main__':
-    main()
+    query()
 
