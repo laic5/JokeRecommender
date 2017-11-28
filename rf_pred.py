@@ -30,7 +30,8 @@ show_plot = True
 num_pred_jokes = 10 # number of jokes you want to predict for a user
 
 # using a random person for demo purposes. can be changed
-sample_user = {'major':'Statistics', 'age':21, 'birth_country':"China", 'gender':"Female",                'id':5, 'joke1':"Programming", 'joke2':None, 'type':'Puns', 'music':"Blues", 'movie':None}
+sample_user = {'major':'Statistics', 'age':21, 'birth_country':"China", 'gender':"Female",                
+    'id':5, 'joke1':"Programming", 'joke2':None, 'type':'Puns', 'music':"Blues", 'movie':None}
 c = 15 # for sample weights
 train = False # either train/test split, or use all the data
 
@@ -313,7 +314,8 @@ def train_and_test(df3, features, user_id):
     sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
     min_weight = min(sample_weights) + 0.001
 
-    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
+    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    
+        max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
     rf.fit(train_df[features], y, sample_weight=sample_weights[train_df.index])
     
     # testing
@@ -398,7 +400,8 @@ def query(user):
     sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
     min_weight = min(sample_weights) + 0.001
 
-    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
+    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    
+        max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
     rf.fit(df3[features], y, sample_weight=sample_weights)
 
     # see what factors are most important
@@ -415,6 +418,7 @@ def query(user):
     # Need: age, gender, birth_country, major, joke_rater_id
     
     # using a sample user for now. when real time, just use these functions and input data into dictionary
+
     sample_df = convert_sample_onehot(user, df3, features)
     preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df,
                            joke_ids=joke_ids, k=num_pred_jokes, print_output=False)
@@ -423,8 +427,6 @@ def query(user):
 
 #query(sample_user)
 
-
-# In[ ]:
 
 if __name__ == '__main__':
     query()
