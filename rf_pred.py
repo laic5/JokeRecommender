@@ -13,16 +13,19 @@ from sklearn.linear_model import Lasso
 from sklearn.feature_selection import SelectFromModel
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import normalize
+from sklearn.metrics import mean_squared_error as mse
 
 import seaborn as sns; sns.set(color_codes=True)
 import matplotlib.pyplot as plt
 
 import random
 
+from itertools import compress
+
 random.seed(2)
 
 
-# In[306]:
+# In[2]:
 
 # GLOBAL VARIABLES
 train_split = .8
@@ -30,8 +33,7 @@ show_plot = True
 num_pred_jokes = 10 # number of jokes you want to predict for a user
 
 # using a random person for demo purposes. can be changed
-sample_user = {'major':'Statistics', 'age':21, 'birth_country':"China", 'gender':"Female",                
-    'id':5, 'joke1':"Programming", 'joke2':None, 'type':'Puns', 'music':"Blues", 'movie':None}
+sample_user = {'major':'Statistics', 'age':21, 'birth_country':"China", 'gender':"Female",                'id':5, 'genre1':"Programming", 'genre2':None, 'type':'Puns', 'music':"Blues", 'movie':None}
 c = 15 # for sample weights
 train = False # either train/test split, or use all the data
 
@@ -97,7 +99,7 @@ def remove_low_variance_users(df):
     return df
 
 
-# In[6]:
+# In[72]:
 
 def impute_NA(df):
     which_drop = df[df.isnull().sum(axis=1) > 2].index
@@ -108,18 +110,17 @@ def impute_NA(df):
     new_df.preferred_joke_type = new_df.preferred_joke_type.fillna("Puns")
     new_df.preferred_joke_genre2 = new_df.preferred_joke_genre.fillna("Programming")
     new_df = new_df.drop(new_df[new_df.joke_type.isnull() == True].index)
-    new_df.subject = new_df.subject.fillna('0')
     
     return new_df
 
 
-# In[7]:
+# In[74]:
 
 def change_category_to_dummy(df):
     
     # ignoes all numeric entries
     ignore_col = [i for i in range((df.shape[1])) if (df.iloc[:,i].dtype == np.int64) or (df.iloc[:,i].dtype == np.float64)]
-    ignore_col.extend([1, 14, 15]) # ignores id, subject, and text -- assume these are still the column #'s
+    ignore_col.extend([list(df.columns).index("joke_id")])
     ignore_col = sorted(ignore_col)
     
     #new_df.iloc[:,string_col] = pd.get_dummies(new_df.iloc[:,string_col])
@@ -135,28 +136,30 @@ def change_category_to_dummy(df):
     return df
 
 
-# In[8]:
+# In[78]:
 
-def lasso_selection(df2, features):
+def lasso_selection(df2):
+    
+    disclude_col = ['rating', 'joke_rater_id', 'joke_id']
+    features = [col for col in df2.columns if col not in disclude_col]
 
     lasso = Lasso(alpha=.001, random_state=2).fit(df2[features], df2.rating)
     model = SelectFromModel(lasso, prefit=True)
 
     lasso_X = model.transform(df2[features])
 
-    new_features = ["rating", "joke_rater_id"] # need these headers
-    
     for i, feature in zip(model.get_support(), features): # get headers, since they get lost after lasso
         if i:
-            new_features.append(feature)
+            disclude_col.append(feature)
 
-    df3 = pd.concat([df2.rating.reset_index(drop=True), df2.joke_rater_id.reset_index(drop=True), pd.DataFrame(lasso_X)], axis=1)
-    df3.columns = new_features
+    df3 = pd.concat([df2.rating.reset_index(drop=True), df2.joke_rater_id.reset_index(drop=True), 
+                    df2.joke_id.reset_index(drop=True), pd.DataFrame(lasso_X)], axis=1)
+    df3.columns = disclude_col
     
     return df3
 
 
-# In[184]:
+# In[9]:
 
 def weigh_samples_vector(df, user_id=None, c=2):
     '''
@@ -174,7 +177,7 @@ def weigh_samples_vector(df, user_id=None, c=2):
     return vector
 
 
-# In[9]:
+# In[10]:
 
 def mse(predicted, real):
     real = np.array(real)
@@ -185,7 +188,7 @@ def mse(predicted, real):
     return mse
 
 
-# In[10]:
+# In[11]:
 
 def plot_pred_vs_actual(y_pred, y_test):
     ax = sns.regplot(x=y_test, y=y_pred.astype('float'), scatter_kws={'alpha':0.1})
@@ -195,7 +198,7 @@ def plot_pred_vs_actual(y_pred, y_test):
     plt.show()
 
 
-# In[310]:
+# In[12]:
 
 def categorize_multiclass(label, user_label, entry, features, numRow):
     '''
@@ -214,7 +217,7 @@ def categorize_multiclass(label, user_label, entry, features, numRow):
     return entry
 
 
-# In[308]:
+# In[13]:
 
 # convert data into one-hot
 
@@ -227,7 +230,6 @@ def convert_sample_onehot(user_dict, df, features):
            
     Converts user data into variables inside the dataframe (i.e. df3) so you can pass into the random forest.
     '''
-    from itertools import compress
     pd.options.mode.chained_assignment = None
     
     if user_dict['id'] in df.joke_rater_id.unique(): # is user already exists in database
@@ -249,10 +251,10 @@ def convert_sample_onehot(user_dict, df, features):
     entry = categorize_multiclass("major_", "major", entry, features, numRow)
     
     ## PREFERRED JOKE GENRE 1
-    entry = categorize_multiclass("preferred_joke_genre_", "joke1", entry, features, numRow)
+    entry = categorize_multiclass("preferred_joke_genre_", "genre1", entry, features, numRow)
     
     ## PREFERRED JOKE GENRE 2
-    entry = categorize_multiclass("preferred_joke_genre2_", "joke2", entry, features, numRow)
+    entry = categorize_multiclass("preferred_joke_genre2_", "genre2", entry, features, numRow)
     
     ## PREFERRED JOKE TYPE
     entry = categorize_multiclass("preferred_joke_type_", "type", entry, features, numRow)
@@ -270,9 +272,9 @@ def convert_sample_onehot(user_dict, df, features):
 #categorize_multiclass("preferred_joke_genre_", "joke1", entry, features, numRow)
 
 
-# In[12]:
+# In[14]:
 
-def get_topk_jokes(user_df, rf, joke_df, joke_ids, features, k=10, print_output=True):
+def get_topk_jokes(user_df, rf, joke_ids, features, k=10):
     '''
     Returns top k jokes for user (default=10).
     user_df is output from convert_sample_onehot.
@@ -282,18 +284,11 @@ def get_topk_jokes(user_df, rf, joke_df, joke_ids, features, k=10, print_output=
     
     df = pd.DataFrame(joke_ids)
     df['pred'] = preds
-    
-    topk_id = list(df.sort_values('pred', ascending=False).head(k)['joke_id'])
-    
-    if print_output:
-        joke_details = joke_df[joke_df.joke_id.isin(topk_id)].iloc[:,0:5]
-        print(pd.merge(joke_details, df, on='joke_id', how='inner'))
         
     return df
 
 
-
-def train_and_test(df3, features, user_id):
+def train_and_test(df3, user_id):
 
     unique_rater = df3.joke_rater_id.unique() # all unique users
     train_size = round(len(unique_rater) * train_split) # 80/20 train/test split!
@@ -305,21 +300,14 @@ def train_and_test(df3, features, user_id):
     test_df = df3.loc[df3['joke_rater_id'].isin(test_idx)]
     
     # time to run random forest regressor
-    y = train_df.rating
-    Y_list = list(y.values)
-    new_cols = range(2, df3.shape[1]) # ignore rating and id
-    features = train_df.columns[new_cols]
-    
-    sample_weights = weigh_samples_vector(df=df3, user_id=user_id, c=c) # weigh user's ratings more
-    sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
-    min_weight = min(sample_weights) + 0.001
-
-    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    
-        max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
-    rf.fit(train_df[features], y, sample_weight=sample_weights[train_df.index])
+    rf = train_rf(train_df, user_id)
     
     # testing
     y_test = test_df.rating
+    
+    disclude = ['joke_rater_id', 'rating']
+    features = [col for col in df3.columns if col not in disclude]
+    
     y_pred = rf.predict(test_df[features]).astype('float')
     print("Test MSE is: " + str(mse(y_test, y_pred)))
     
@@ -328,10 +316,55 @@ def train_and_test(df3, features, user_id):
         plot_pred_vs_actual(y_pred, y_test)
 
 
-# In[328]:
+# In[34]:
 
-def query(user):
+def train_rf(df3, user_id, print_importance=False):
+    y = df3.rating
+    Y_list = list(y.values)
     
+    disclude = ['joke_rater_id', 'rating']
+    features = [col for col in df3.columns if col not in disclude]
+
+    sample_weights = weigh_samples_vector(df=df3, user_id=user_id, c=c) # weigh user's ratings more
+    sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
+    min_weight = min(sample_weights) + 0.001
+
+    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
+    rf.fit(df3[features], y, sample_weight=sample_weights)
+    
+    if print_importance:
+        # see what factors are most important
+        s = pd.DataFrame((rf.feature_importances_))
+
+        s = s.transpose()
+        s.columns = features
+        s = s.transpose()
+
+        print("10 most important features: ")
+        print(s.sort_values(by=0, ascending=False).head(10))
+    
+    return rf
+
+
+# In[81]:
+
+def get_preds(user, df3, rf, k):
+    
+    ## QUERYING JOKE PREDICTIONS FOR NEW USER
+    
+    disclude = ['joke_rater_id', 'rating']
+    features = [col for col in df3.columns if col not in disclude]
+    
+    user_df = convert_sample_onehot(user, df3, features)
+    joke_ids = df3[df3.joke_rater_id == 476].joke_id 
+    preds = get_topk_jokes(user_df, rf, features=features, joke_ids=joke_ids, k=k)
+    
+    return preds
+
+
+# In[84]:
+
+def prepare_df():
     # 3 dfs from csvs
     rater_df = pd.read_csv("JokeRater.csv")
     rating_df = pd.read_csv("JokeRating.csv")
@@ -369,64 +402,45 @@ def query(user):
     
     # finally, add jokes in
     df = pd.merge(df, joke_df, on='joke_id', how='outer')
+    df = df.drop('subject', axis=1)
+    df = df.drop('joke_text', axis=1)
     
     # get rid of high NaN entries, and replace categories with modes
     df = impute_NA(df)
-    
+
     # convert categorical variables into dummies (one-hot)
     df2 = change_category_to_dummy(df)
     
-    disclude_col = [0, 1, 2, 4, 5] # id's, subject, and text -- might want to double check if db changes
-    cols = [i for i in range(df2.shape[1]) if i not in disclude_col] # excluding text, subject, and ID's
-    features = df2.columns[cols]
-    
-    joke_ids = df2[df2.joke_rater_id == 476].joke_id # used later when querying new person
-    
     # lasso feature selection
-    df3 = lasso_selection(df2, features)
+    df3 = lasso_selection(df2)
+    
+    return df3
+
+
+# In[85]:
+
+def query(user):
+    
+    df3 = prepare_df()
     
     ## RANDOM FORESTTTT
     
     if train: # train/test to get test MSE
-        train_and_test(df3, features, user['id']) # fitted to train dataset
+        train_and_test(df3, user['id']) # fitted to train dataset
         
-    # now using all the data
-    y = df3.rating
-    Y_list = list(y.values)
-    new_cols = range(2, df3.shape[1]) # ignore rating and id
-    features = df3.columns[new_cols]
-
-    sample_weights = weigh_samples_vector(df=df3, user_id=user['id'], c=c) # weigh user's ratings more
-    sample_weights = np.ravel(normalize(sample_weights.reshape((-1, 1)), axis=0))
-    min_weight = min(sample_weights) + 0.001
-
-    rf = RandomForestRegressor(n_estimators=50, max_features='sqrt', random_state=42,                                    
-        max_depth=10, min_weight_fraction_leaf=min_weight) # tuneable parameters
-    rf.fit(df3[features], y, sample_weight=sample_weights)
-
-    # see what factors are most important
-    s = pd.DataFrame((rf.feature_importances_))
-
-    s = s.transpose()
-    s.columns = features
-    s = s.transpose()
-
-    print("15 most important features: ")
-    print(s.sort_values(by=0, ascending=False).head(15))
+    # now using all the data to train random forest
+    rf = train_rf(df3, user['id'], print_importance=True)
     
     ## QUERYING JOKE PREDICTIONS FOR NEW USER
-    # Need: age, gender, birth_country, major, joke_rater_id
-    
-    # using a sample user for now. when real time, just use these functions and input data into dictionary
-
-    sample_df = convert_sample_onehot(user, df3, features)
-    preds = get_topk_jokes(sample_df, rf, features=features, joke_df=joke_df,
-                           joke_ids=joke_ids, k=num_pred_jokes, print_output=False)
+    preds = get_preds(user, df3, rf, num_pred_jokes)
     
     return preds # preds contains all the joke predicted scores
 
-#query(sample_user)
+train = False
+p = query(sample_user)
 
+
+# In[ ]:
 
 if __name__ == '__main__':
     query()
