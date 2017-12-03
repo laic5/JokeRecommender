@@ -288,6 +288,7 @@ def get_topk_jokes(user_df, rf, joke_ids, features, k=10):
     return df
 
 
+
 def train_and_test(df3, user_id):
 
     unique_rater = df3.joke_rater_id.unique() # all unique users
@@ -311,18 +312,21 @@ def train_and_test(df3, user_id):
     y_pred = rf.predict(test_df[features]).astype('float')
     print("Test MSE is: " + str(mse(y_test, y_pred)))
     
+    #df = pd.DataFrame.from_dict({'y_test':y_test, 'y_pred': y_pred})
+    #df.to_csv('actual_vs_pred.csv')
+    
      # see distribution of predicted joke score vs. actual joke value
     if show_plot:
         plot_pred_vs_actual(y_pred, y_test)
 
 
-# In[34]:
+# In[105]:
 
 def train_rf(df3, user_id, print_importance=False):
     y = df3.rating
     Y_list = list(y.values)
     
-    disclude = ['joke_rater_id', 'rating']
+    disclude = ['joke_rater_id', 'rating', 'joke_id']
     features = [col for col in df3.columns if col not in disclude]
 
     sample_weights = weigh_samples_vector(df=df3, user_id=user_id, c=c) # weigh user's ratings more
@@ -342,17 +346,18 @@ def train_rf(df3, user_id, print_importance=False):
 
         print("10 most important features: ")
         print(s.sort_values(by=0, ascending=False).head(10))
+        (s.sort_values(by=0, ascending=False)).to_csv('feat_import.csv')
     
     return rf
 
 
-# In[81]:
+# In[109]:
 
 def get_preds(user, df3, rf, k):
     
     ## QUERYING JOKE PREDICTIONS FOR NEW USER
     
-    disclude = ['joke_rater_id', 'rating']
+    disclude = ['joke_rater_id', 'rating', 'joke_id']
     features = [col for col in df3.columns if col not in disclude]
     
     user_df = convert_sample_onehot(user, df3, features)
@@ -362,7 +367,7 @@ def get_preds(user, df3, rf, k):
     return preds
 
 
-# In[84]:
+# In[107]:
 
 def prepare_df():
     # 3 dfs from csvs
@@ -417,11 +422,11 @@ def prepare_df():
     return df3
 
 
-# In[85]:
+# In[111]:
+
+df3 = prepare_df()
 
 def query(user):
-    
-    df3 = prepare_df()
     
     ## RANDOM FORESTTTT
     
@@ -436,7 +441,6 @@ def query(user):
     
     return preds # preds contains all the joke predicted scores
 
-train = False
 p = query(sample_user)
 
 
