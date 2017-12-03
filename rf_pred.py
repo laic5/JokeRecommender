@@ -25,7 +25,7 @@ from itertools import compress
 random.seed(2)
 
 
-# In[2]:
+# In[148]:
 
 # GLOBAL VARIABLES
 train_split = .8
@@ -33,7 +33,7 @@ show_plot = True
 num_pred_jokes = 10 # number of jokes you want to predict for a user
 
 # using a random person for demo purposes. can be changed
-sample_user = {'major':'Statistics', 'age':21, 'birth_country':"China", 'gender':"Female",                'id':5, 'genre1':"Programming", 'genre2':None, 'type':'Puns', 'music':"Blues", 'movie':None}
+sample_user = {'major':'Computer Science', 'age':23, 'birth_country':"India", 'gender':"Male",                'id':56, 'genre1':"Sports", 'genre2':"Math", 'type':'Pick-up Line', 'music':"Rap", 'movie':"Action"}
 c = 15 # for sample weights
 train = False # either train/test split, or use all the data
 
@@ -177,17 +177,6 @@ def weigh_samples_vector(df, user_id=None, c=2):
     return vector
 
 
-# In[10]:
-
-def mse(predicted, real):
-    real = np.array(real)
-    predicted = np.array(predicted)
-    temp =  (real - predicted) * (real - predicted)
-    n = len(real)
-    mse = 1.0 / n * sum(temp)
-    return mse
-
-
 # In[11]:
 
 def plot_pred_vs_actual(y_pred, y_test):
@@ -272,7 +261,7 @@ def convert_sample_onehot(user_dict, df, features):
 #categorize_multiclass("preferred_joke_genre_", "joke1", entry, features, numRow)
 
 
-# In[14]:
+# In[150]:
 
 def get_topk_jokes(user_df, rf, joke_ids, features, k=10):
     '''
@@ -285,8 +274,7 @@ def get_topk_jokes(user_df, rf, joke_ids, features, k=10):
     df = pd.DataFrame(joke_ids)
     df['pred'] = preds
         
-    return df
-
+    return (df.sort_values(by='pred', ascending=False).head(k))
 
 
 def train_and_test(df3, user_id):
@@ -306,7 +294,7 @@ def train_and_test(df3, user_id):
     # testing
     y_test = test_df.rating
     
-    disclude = ['joke_rater_id', 'rating']
+    disclude = ['joke_rater_id', 'rating', 'joke_id']
     features = [col for col in df3.columns if col not in disclude]
     
     y_pred = rf.predict(test_df[features]).astype('float')
