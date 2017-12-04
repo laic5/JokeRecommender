@@ -5,6 +5,7 @@
 
 # In[1]:
 
+import sqlite3 as lite
 import pandas as pd
 import numpy as np
 
@@ -25,7 +26,7 @@ from itertools import compress
 random.seed(2)
 
 
-# In[148]:
+# In[241]:
 
 # GLOBAL VARIABLES
 train_split = .8
@@ -33,7 +34,7 @@ show_plot = True
 num_pred_jokes = 10 # number of jokes you want to predict for a user
 
 # using a random person for demo purposes. can be changed
-sample_user = {'major':'Computer Science', 'age':23, 'birth_country':"India", 'gender':"Male",                'id':56, 'genre1':"Sports", 'genre2':"Math", 'type':'Pick-up Line', 'music':"Rap", 'movie':"Action"}
+sample_user = {'major':'Computer Science', 'age':23, 'birth_country':"India", 'gender':"Male",                'id':56, 'preferred_joke_genre':"Sports", 'preferred_joke_genre2':None,                'preferred_joke_type':'Pick-up Line', 'favorite_music_genre':"Rap", 'favorite_movie_genre':"Action"}
 c = 15 # for sample weights
 train = False # either train/test split, or use all the data
 
@@ -206,7 +207,7 @@ def categorize_multiclass(label, user_label, entry, features, numRow):
     return entry
 
 
-# In[13]:
+# In[242]:
 
 # convert data into one-hot
 
@@ -240,19 +241,19 @@ def convert_sample_onehot(user_dict, df, features):
     entry = categorize_multiclass("major_", "major", entry, features, numRow)
     
     ## PREFERRED JOKE GENRE 1
-    entry = categorize_multiclass("preferred_joke_genre_", "genre1", entry, features, numRow)
+    entry = categorize_multiclass("preferred_joke_genre_", "preferred_joke_genre", entry, features, numRow)
     
     ## PREFERRED JOKE GENRE 2
-    entry = categorize_multiclass("preferred_joke_genre2_", "genre2", entry, features, numRow)
+    entry = categorize_multiclass("preferred_joke_genre2_", "preferred_joke_genre2", entry, features, numRow)
     
     ## PREFERRED JOKE TYPE
-    entry = categorize_multiclass("preferred_joke_type_", "type", entry, features, numRow)
+    entry = categorize_multiclass("preferred_joke_type_", "preferred_joke_type", entry, features, numRow)
     
     ## MOVIE
-    entry = categorize_multiclass("favorite_movie_genre_", "movie", entry, features, numRow)
+    entry = categorize_multiclass("favorite_movie_genre_", "favorite_movie_genre", entry, features, numRow)
     
     ## MUSIC
-    entry = categorize_multiclass("favorite_music_genre_", "music", entry, features, numRow)
+    entry = categorize_multiclass("favorite_music_genre_", "favorite_music_genre", entry, features, numRow)
         
     return entry
 
@@ -357,13 +358,19 @@ def get_preds(user, df3, rf, k):
     return preds
 
 
-# In[107]:
+# In[237]:
 
 def prepare_df():
-    # 3 dfs from csvs
-    rater_df = pd.read_csv("JokeRater.csv")
-    rating_df = pd.read_csv("JokeRating.csv")
-    joke_df = pd.read_csv("Joke.csv")
+    '''
+    Return dataframe from all the values inside the database.
+    Data cleaning, pre-processing, and LASSO feature selection
+    '''
+
+    con = lite.connect('red_team.db')
+    
+    joke_df = pd.read_sql_query("SELECT * FROM Joke", con)
+    rating_df = pd.read_sql_query("SELECT * FROM JokeRating", con)
+    rater_df = pd.read_sql_query("SELECT * FROM JokeRater", con)
     
     ## PRE-PROCESSING DATAAAAAA
     
@@ -448,7 +455,7 @@ append_new_rows(df3, sample_user, ratings, ten_random_jokes)
 '''
 
 
-# In[111]:
+# In[243]:
 
 df3 = prepare_df()
 
