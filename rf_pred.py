@@ -277,6 +277,8 @@ def get_topk_jokes(user_df, rf, joke_ids, features, k=10):
     return (df.sort_values(by='pred', ascending=False).head(k))
 
 
+# In[95]:
+
 def train_and_test(df3, user_id):
 
     unique_rater = df3.joke_rater_id.unique() # all unique users
@@ -410,6 +412,42 @@ def prepare_df():
     return df3
 
 
+# In[217]:
+
+def append_new_rows(df3, user_dict, returned_ratings, returned_joke_ids):
+    '''
+    user_dict: has same structure as sample_user
+    df3 is the finished dataframe after prepare_df()
+    returned_ratings: list of ratings returned back.
+    returned_joke_ids: list of joke IDs that the user rated
+    
+    ASSUME ratings are in the same order as the returned_joke_ids
+    
+    Function: Appends user's responses to the master dataframe (df3).
+    '''
+    disclude = ['joke_rater_id', 'rating', 'joke_id']
+    features = [col for col in df3.columns if col not in disclude]
+
+    user_df = convert_sample_onehot(user_dict, df3, features) # creates template for user
+    relevant_jokes = user_df[user_df.joke_id.isin(returned_joke_ids)]
+    relevant_jokes.rating = returned_ratings # update ratings with the correct ratings user inputted
+    relevant_jokes = relevant_jokes.drop(relevant_jokes[relevant_jokes.rating.isnull() == True].index) # remove NaN ratings
+    
+    df3 = df3.append(relevant_jokes) # append new jokes to the dataframe
+    
+    return df3
+
+
+'''
+TO USE:
+user_df = convert_sample_onehot(sample_user, df3, features)
+ten_random_jokes = [505, 506, 507, 508, 509, 511, 512, 513, 514, 515] # later changed to actual 10 joke_ids returned
+ratings = [3, 5, 3, 1, 2, None, 4, None, None, 3] # replace with actual values later
+
+append_new_rows(df3, sample_user, ratings, ten_random_jokes)
+'''
+
+
 # In[111]:
 
 df3 = prepare_df()
@@ -435,5 +473,5 @@ p = query(sample_user)
 # In[ ]:
 
 if __name__ == '__main__':
-    query()
+    query(sample_user)
 
